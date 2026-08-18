@@ -1,0 +1,13 @@
+{
+  // This project targets Prisma 6 (6.19.3), where `datasource { url = env(...) }`
+  // in schema.prisma is the supported form — `prisma validate` passes cleanly.
+  //
+  // The Prisma extension ships the Prisma 7 language server by default, which
+  // flags that line as an error because Prisma 7 moves the connection URL into
+  // prisma.config.ts and requires a driver adapter. Pinning the workspace to the
+  // Prisma 6 language server makes the editor agree with the code.
+  //
+  // If this project is ever upgraded to Prisma 7, delete these two settings.
+  "prisma.pinToPrisma6": true,
+  "prisma.hidePrisma6Prompts": true
+}
