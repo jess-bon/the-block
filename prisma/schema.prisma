@@ -1,0 +1,97 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// A single lot on the block. Seeded from data/vehicles.json.
+///
+/// currentBid / bidCount are denormalized from the Bid ledger so that the
+/// inventory grid is a single indexed query instead of a groupBy over every
+/// bid ever placed. They are only ever written inside the bid transaction in
+/// lib/bidding.ts, which holds a row lock, so they cannot drift from the ledger.
+model Vehicle {
+  id     String @id
+  vin    String @unique
+  lot    String @unique
+  year   Int
+  make   String
+  model  String
+  trim   String
+
+  bodyStyle     String
+  exteriorColor String
+  interiorColor String
+  engine        String
+  transmission  String
+  drivetrain    String
+  odometerKm    Int
+  fuelType      String
+
+  conditionGrade  Float
+  conditionReport String
+  damageNotes     String[]
+  titleStatus     String
+
+  province String
+  city     String
+
+  sellingDealership String
+  images            String[]
+
+  // auctionStart is normalized at seed time onto a window around "now" — the
+  // shipped dataset's timestamps are all in the past. See prisma/seed.ts.
+  auctionStart DateTime
+  auctionEnd   DateTime
+
+  startingBid  Int
+  reservePrice Int?
+  buyNowPrice  Int?
+
+  currentBid Int?
+  bidCount   Int  @default(0)
+
+  // Set when a buyer takes the Buy Now price, which closes the lot early.
+  soldAt    DateTime?
+  soldPrice Int?
+
+  bids Bid[]
+
+  /// Weighted tsvector over make/model/trim (A), attributes (B) and identifiers
+  /// (C). GENERATED ALWAYS, so Postgres maintains it — see the add_search
+  /// migration. Prisma has no tsvector type, hence Unsupported; it is queried
+  /// through raw SQL in lib/vehicles.ts and never selected into the client.
+  searchVector Unsupported("tsvector")?
+
+  @@index([make])
+  @@index([bodyStyle])
+  @@index([province])
+  @@index([auctionEnd])
+  @@index([conditionGrade])
+}
+
+/// Append-only bid ledger. Rows are never updated or deleted; the vehicle's
+/// standing price is always the highest amount here.
+model Bid {
+  id        String   @id @default(uuid())
+  vehicleId String
+  vehicle   Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  amount    Int
+  /// Stable per-browser id from the bidder_id cookie. No auth in this prototype;
+  /// this exists so the UI can tell "your bid" from someone else's.
+  bidderId  String
+  /// Display name shown in bid history, e.g. "Bidder 4821".
+  alias     String
+  /// "bid" | "buy_now"
+  kind      String   @default("bid")
+  createdAt DateTime @default(now())
+
+  // Two bidders racing to the same amount: the loser's insert fails on this
+  // constraint rather than silently tying. Belt-and-braces alongside the row lock.
+  @@unique([vehicleId, amount])
+  @@index([vehicleId, createdAt])
+  @@index([bidderId])
+}
