@@ -7,7 +7,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "setup": "prisma migrate deploy && npm run seed",
+    "setup": "node scripts/init-env.mjs && prisma migrate deploy && npm run seed",
     "seed": "tsx prisma/seed.ts",
     "db:push": "prisma db push",
     "db:reset": "prisma migrate reset --force",
